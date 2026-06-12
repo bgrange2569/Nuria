@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Données personnelles générées
+garmin_activities.json
+garmin_wellness.json
+garmin_docs.json
+garmin_db/
+
+# Environnement virtuel Python
+garmin-ai/
+
+# Divers
+.DS_Store
+__pycache__/
+*.pyc
