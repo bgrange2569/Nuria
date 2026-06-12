@@ -1,0 +1,189 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fnil\fcharset0 AppleColorEmoji;\f2\fnil\fcharset0 LucidaGrande;
+}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0  Read me du projet : un LLM pour g\'e9rer mes entrainements sur Garmin.\
+Construire un chatbot qui puisasse me conseiller sur mes entrainements\
+\
+Une premi\'e8res version propos\'e9e par Claude :\
+\
+Excellente question ! Voici un guide complet et structur\'e9 pour mettre en place un chatbot local (via Ollama) capable d'analyser vos donn\'e9es d'entra\'eenement Garmin Fenix 7.\
+\
+
+\f1 \uc0\u55356 \u57303 \u65039 
+\f0  Architecture globale du projet\
+Garmin Connect 
+\f2 \uc0\u8594 
+\f0  Export des donn\'e9es 
+\f2 \uc0\u8594 
+\f0  Traitement & vectorisation 
+\f2 \uc0\u8594 
+\f0  RAG avec Ollama 
+\f2 \uc0\u8594 
+\f0  Chatbot\
+Mathematica\
+Le principe repose sur une architecture RAG (Retrieval-Augmented Generation) : vos donn\'e9es sont stock\'e9es localement et le LLM les consulte pour r\'e9pondre \'e0 vos questions.\
+\
+
+\f1 \uc0\u55357 \u56549 
+\f0  \'c9TAPE 1 \'97 Extraire vos donn\'e9es Garmin\
+Option A : Via la biblioth\'e8que Python garminconnect (recommand\'e9e)\
+C'est la m\'e9thode la plus automatis\'e9e et la plus compl\'e8te.\
+\
+pip install garminconnect\
+Bash\
+from garminconnect import Garmin\
+import json\
+\
+client = Garmin("votre@email.com", "votre_mot_de_passe")\
+client.login()\
+\
+# R\'e9cup\'e9rer les activit\'e9s des 90 derniers jours\
+activities = client.get_activities(0, 100)  # offset, limit\
+\
+# Sauvegarder en JSON\
+with open("garmin_activities.json", "w") as f:\
+    json.dump(activities, f, indent=2, ensure_ascii=False)\
+Python\
+Vous pouvez r\'e9cup\'e9rer : distance, dur\'e9e, FC moyenne/max, allure, VO2 max, charge d'entra\'eenement, sommeil, HRV, Body Battery, etc.\
+\
+Option B : Export manuel via Garmin Connect Web\
+Allez sur connect.garmin.com\
+Activit\'e9s 
+\f2 \uc0\u8594 
+\f0  Toutes les activit\'e9s 
+\f2 \uc0\u8594 
+\f0  Exporter CSV pour un r\'e9sum\'e9\
+Par activit\'e9 : ic\'f4ne engrenage 
+\f1 \uc0\u9881 \u65039 
+\f0  
+\f2 \uc0\u8594 
+\f0  Exporter en FIT / GPX / TCX\
+Option C : Export RGPD complet\
+Sur Garmin Connect 
+\f2 \uc0\u8594 
+\f0  Param\'e8tres du compte 
+\f2 \uc0\u8594 
+\f0  Exporter vos donn\'e9es (peut prendre quelques jours, mais tr\'e8s complet)\
+\
+
+\f1 \uc0\u9881 \u65039 
+\f0  \'c9TAPE 2 \'97 Pr\'e9parer et transformer les donn\'e9es\
+Il faut convertir vos donn\'e9es structur\'e9es en texte lisible pour le LLM.\
+\
+import json\
+\
+with open("garmin_activities.json") as f:\
+    activities = json.load(f)\
+\
+docs = []\
+for act in activities:\
+    texte = f"""\
+    Date : \{act.get('startTimeLocal')\}\
+    Type : \{act.get('activityType', \{\}).get('typeKey')\}\
+    Distance : \{round(act.get('distance', 0) / 1000, 2)\} km\
+    Dur\'e9e : \{act.get('duration', 0) // 60\} min\
+    FC moyenne : \{act.get('averageHR')\} bpm | FC max : \{act.get('maxHR')\} bpm\
+    Allure moyenne : \{act.get('averageSpeed')\} m/s\
+    D\'e9nivel\'e9 positif : \{act.get('elevationGain')\} m\
+    Calories : \{act.get('calories')\} kcal\
+    VO2 Max estim\'e9 : \{act.get('vO2MaxValue')\}\
+    Charge d'entra\'eenement : \{act.get('activityTrainingLoad')\}\
+    """\
+    docs.append(texte.strip())\
+Python\
+
+\f1 \uc0\u55358 \u56800 
+\f0  \'c9TAPE 3 \'97 Configurer Ollama + RAG\
+3.1 \'97 Installer Ollama et t\'e9l\'e9charger les mod\'e8les\
+# Installer Ollama : https://ollama.com\
+ollama pull llama3        # LLM principal (conseils, analyse)\
+ollama pull nomic-embed-text  # Mod\'e8le d'embedding pour la vectorisation\
+Bash\
+3.2 \'97 Mettre en place le pipeline RAG avec LangChain\
+pip install langchain langchain-ollama langchain-community chromadb\
+Bash\
+from langchain_ollama import OllamaEmbeddings, ChatOllama\
+from langchain_community.vectorstores import Chroma\
+from langchain.text_splitter import RecursiveCharacterTextSplitter\
+from langchain.chains import RetrievalQA\
+from langchain_core.documents import Document\
+\
+# 1. Cr\'e9er les documents\
+documents = [Document(page_content=doc) for doc in docs]\
+\
+# 2. Vectoriser et stocker dans ChromaDB (base de donn\'e9es locale)\
+embeddings = OllamaEmbeddings(model="nomic-embed-text")\
+vectorstore = Chroma.from_documents(documents, embeddings, persist_directory="./garmin_db")\
+\
+# 3. Cr\'e9er la cha\'eene RAG\
+llm = ChatOllama(model="llama3", temperature=0.3)\
+retriever = vectorstore.as_retriever(search_kwargs=\{"k": 10\})\
+\
+qa_chain = RetrievalQA.from_chain_type(\
+    llm=llm,\
+    retriever=retriever,\
+    chain_type="stuff"\
+)\
+Python\
+
+\f1 \uc0\u55357 \u56492 
+\f0  \'c9TAPE 4 \'97 Lancer votre Chatbot\
+print("
+\f1 \uc0\u55356 \u57283 
+\f0  Chatbot Garmin - Tapez 'quit' pour quitter\\n")\
+\
+while True:\
+    question = input("Vous : ")\
+    if question.lower() == "quit":\
+        break\
+    \
+    reponse = qa_chain.invoke(question)\
+    print(f"\\n
+\f1 \uc0\u55358 \u56598 
+\f0  Assistant : \{reponse['result']\}\\n")\
+Python\
+Exemples de questions que vous pourrez poser :\
+\
+"Quelle est ma progression en course \'e0 pied sur les 3 derniers mois ?"\
+"Quelles sont mes s\'e9ances o\'f9 ma FC max a d\'e9pass\'e9 180 bpm ?"\
+"Suis-je en surcharge d'entra\'eenement ?"\
+"Donne-moi des conseils pour am\'e9liorer mon VO2 max"\
+
+\f1 \uc0\u55357 \u57056 \u65039 
+\f0  Outils alternatifs / compl\'e9mentaires\
+Outil	Description\
+Open WebUI	Interface web pour Ollama (pas de code)\
+AnythingLLM	App tout-en-un pour RAG local, tr\'e8s facile\
+Garmin MCP Connector	Protocole MCP pour connecter Garmin \'e0 des LLM\
+n8n	Automatisation no-code pour synchroniser les donn\'e9es\
+
+\f1 \uc0\u9989 
+\f0  R\'e9sum\'e9 des \'e9tapes\
+Extraire les donn\'e9es via python-garminconnect\
+Convertir les donn\'e9es JSON/FIT en texte lisible\
+Vectoriser ces textes avec nomic-embed-text via Ollama\
+Stocker dans une base vectorielle locale (ChromaDB)\
+Interroger via un pipeline RAG avec llama3 ou mistral\
+
+\f1 \uc0\u55357 \u56481 
+\f0  Conseil de mod\'e8le : Pour ce type de t\'e2che analytique, Llama 3.1 8B ou Mistral 7B sont d'excellents points de d\'e9part. Si vous avez une bonne machine (GPU), Llama 3.3 70B donnera des conseils encore plus pertinents.\
+\
+Voulez-vous que je d\'e9taille davantage l'une de ces \'e9tapes, ou que je vous aide \'e0 construire un script complet cl\'e9 en main ?\
+\
+\
+Etape1 :\
+Cr\'e9er le dossier projet : LLM/garmin-ai\
+Cr\'e9ation de l\'92environnement virtuel python pour Garmin-ai avec la commande python3 -m venv garmin-ai\
+Installation de la biblioth\'e8que Garmin : pip Install garminconnect python-dotenv\
+Touch.env : cr\'e9ation du fichier avec les credentials Garmin\
+\
+\
+\
+\
+\
+}
