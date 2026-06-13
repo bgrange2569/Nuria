@@ -1,8 +1,15 @@
+import json
+import re
+from datetime import datetime
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+
+# Nombre de documents récents toujours inclus dans le contexte, triés par date
+NB_ACTIVITES_RECENTES = 10
+NB_JOURS_BIEN_ETRE_RECENTS = 7
 
 # 1. Charger la base de données vectorielle
 print("📂 Chargement de la base de données...")
@@ -13,39 +20,86 @@ vectorstore = Chroma(
 )
 print("✅ Base de données chargée !")
 
+# 1bis. Charger les documents bruts pour construire un contexte récent trié par date
+# (la recherche par similarité seule ne garantit pas de retrouver les données les plus récentes)
+print("📂 Chargement des données récentes...")
+DATE_RE = re.compile(r"^(?:Activité du|Bien-être du) (\d{4}-\d{2}-\d{2})")
+
+
+def extraire_date(doc):
+    match = DATE_RE.match(doc)
+    return datetime.strptime(match.group(1), "%Y-%m-%d") if match else datetime.min
+
+
+with open("garmin_docs.json", "r", encoding="utf-8") as f:
+    tous_les_docs = json.load(f)
+
+activites = sorted(
+    (d for d in tous_les_docs if d.startswith("Activité du")),
+    key=extraire_date, reverse=True
+)
+bien_etre = sorted(
+    (d for d in tous_les_docs if d.startswith("Bien-être du")),
+    key=extraire_date, reverse=True
+)
+
+activites_recentes = "\n\n".join(activites[:NB_ACTIVITES_RECENTES])
+bien_etre_recent = "\n\n".join(bien_etre[:NB_JOURS_BIEN_ETRE_RECENTS])
+print(f"✅ {min(len(activites), NB_ACTIVITES_RECENTES)} activités et "
+      f"{min(len(bien_etre), NB_JOURS_BIEN_ETRE_RECENTS)} jours de bien-être récents chargés !")
+
 # 2. Définir le prompt système
 prompt_template = """
-Tu es un coach sportif expert en analyse de données d'entraînement et de bien-être Garmin
-(activités, sommeil, stress, fréquence cardiaque au repos, VFC, Body Battery, statut d'entraînement).
-Tu analyses ces données et tu donnes des conseils personnalisés, bienveillants et motivants en français,
-en tenant compte à la fois de la charge d'entraînement et de la récupération.
+Tu es un coach SPORTIF dont le rôle principal est de construire des plans d'entraînement
+et d'analyser les séances de la personne que tu coaches, à partir de ses données Garmin.
 
-Voici les données pertinentes :
+Les données de bien-être (sommeil, stress, FC repos, VFC, Body Battery, statut d'entraînement)
+ne sont PAS le sujet principal : elles servent uniquement de contexte pour ajuster
+tes recommandations d'entraînement (charge, intensité, repos), pas pour faire un bilan de santé.
+
+Distingue toujours clairement dans ta réponse :
+- les SÉANCES D'ENTRAÎNEMENT (type, distance, durée, allure, charge d'entraînement, FC...)
+- les DONNÉES DE BIEN-ÊTRE (sommeil, stress, récupération...), à mentionner seulement
+  si elles sont utiles pour justifier une recommandation (ex : "vous avez mal récupéré,
+  donc privilégiez une séance facile").
+
+Voici les données de bien-être les plus récentes, triées de la plus récente à la plus ancienne :
+{bien_etre_recent}
+
+Voici d'autres séances ou données pertinentes pour répondre à la question :
 {context}
+
+Voici les séances d'entraînement les plus récentes, triées de la plus récente (en premier) à la plus ancienne.
+C'est la source la plus fiable pour savoir quelle est la dernière séance ou pour construire un plan d'entraînement :
+{activites_recentes}
 
 Question : {question}
 
 Réponds en français, de manière claire et structurée.
+Si la question porte sur l'entraînement, concentre ta réponse sur les séances et les plans
+d'entraînement, et n'utilise le bien-être que pour ajuster tes conseils.
 Si tu ne trouves pas l'information dans les données, dis-le honnêtement.
 """
 
 prompt = PromptTemplate(
     template=prompt_template,
-    input_variables=["context", "question"]
+    input_variables=["activites_recentes", "bien_etre_recent", "context", "question"]
 )
 
 # 3. Initialiser le LLM
-print("🧠 Initialisation du modèle LLM (llama3.1)...")
-llm = ChatOllama(model="llama3.1", temperature=0.3)
+print("🧠 Initialisation du modèle LLM (qwen2.5:14b-instruct)...")
+llm = ChatOllama(model="qwen2.5:14b-instruct", temperature=0.3, num_ctx=8192)
 
 # 4. Créer la chaîne RAG
-retriever = vectorstore.as_retriever(search_kwargs={"k": 15})
+retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 qa_chain = (
     {
+        "activites_recentes": lambda _: activites_recentes,
+        "bien_etre_recent": lambda _: bien_etre_recent,
         "context": retriever | format_docs,
         "question": RunnablePassthrough()
     }
