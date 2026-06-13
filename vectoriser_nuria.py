@@ -5,7 +5,7 @@ from langchain_core.documents import Document
 
 # 1. Charger les données transformées
 print("📂 Chargement des données transformées...")
-with open("garmin_docs.json", "r", encoding="utf-8") as f:
+with open("nuria_docs.json", "r", encoding="utf-8") as f:
     docs = json.load(f)
 
 print(f"✅ {len(docs)} activités chargées !")
@@ -23,9 +23,9 @@ print("⚙️  Vectorisation en cours... (peut prendre quelques minutes)")
 vectorstore = Chroma.from_documents(
     documents=documents,
     embedding=embeddings,
-    persist_directory="./garmin_db"
+    persist_directory="./nuria_db"
 )
 
 print("✅ Vectorisation terminée !")
-print("💾 Base de données sauvegardée dans le dossier garmin_db")
+print("💾 Base de données sauvegardée dans le dossier nuria_db")
 print("🎉 Terminé ! Vous pouvez passer à l'étape suivante.")

@@ -2,9 +2,9 @@ import subprocess
 import sys
 
 ETAPES = [
-    ("Export des données Garmin", "export-garmin.py"),
-    ("Transformation des données", "transformer_garmin.py"),
-    ("Vectorisation des données", "vectoriser_garmin.py"),
+    ("Export des données Garmin", "export_nuria.py"),
+    ("Transformation des données", "transformer_nuria.py"),
+    ("Vectorisation des données", "vectoriser_nuria.py"),
 ]
 
 

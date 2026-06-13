@@ -15,7 +15,7 @@ NB_JOURS_BIEN_ETRE_RECENTS = 7
 print("📂 Chargement de la base de données...")
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 vectorstore = Chroma(
-    persist_directory="./garmin_db",
+    persist_directory="./nuria_db",
     embedding_function=embeddings
 )
 print("✅ Base de données chargée !")
@@ -31,7 +31,7 @@ def extraire_date(doc):
     return datetime.strptime(match.group(1), "%Y-%m-%d") if match else datetime.min
 
 
-with open("garmin_docs.json", "r", encoding="utf-8") as f:
+with open("nuria_docs.json", "r", encoding="utf-8") as f:
     tous_les_docs = json.load(f)
 
 activites = sorted(
@@ -110,7 +110,7 @@ qa_chain = (
 
 print("✅ Chatbot prêt !")
 print("=" * 50)
-print("🏃 Bienvenue sur votre Coach Garmin IA !")
+print("🏃 Bienvenue sur Nuria, votre coach sportif IA !")
 print("💡 Exemples de questions :")
 print("   - Quelle est ma progression ce mois-ci ?")
 print("   - Quelle est ma séance la plus longue ?")
@@ -132,7 +132,7 @@ while True:
         print("⚠️  Veuillez poser une question.")
         continue
 
-    print("\n🤖 Coach IA (en cours de réflexion...)\n")
+    print("\n🤖 Nuria (en cours de réflexion...)\n")
     reponse = qa_chain.invoke(question)
-    print(f"🤖 Coach IA : {reponse}")
+    print(f"🤖 Nuria : {reponse}")
     print("-" * 50)

@@ -2,13 +2,13 @@
 .env
 
 # Données personnelles générées
-garmin_activities.json
-garmin_wellness.json
-garmin_docs.json
-garmin_db/
+nuria_activities.json
+nuria_wellness.json
+nuria_docs.json
+nuria_db/
 
 # Environnement virtuel Python
-garmin-ai/
+nuria/
 
 # Divers
 .DS_Store

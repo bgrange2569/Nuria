@@ -23,7 +23,7 @@ def or_na(value):
 
 # 1. Transformer les activités
 print("📂 Chargement des activités Garmin...")
-with open("garmin_activities.json", "r", encoding="utf-8") as f:
+with open("nuria_activities.json", "r", encoding="utf-8") as f:
     activities = json.load(f)
 
 print(f"✅ {len(activities)} activités chargées !")
@@ -52,9 +52,9 @@ Score anaérobie : {act.get('anaerobicTrainingEffect', 'N/A')}
     docs.append(texte)
 
 # 2. Transformer les données de bien-être (sommeil, stress, HRV, FC repos, Body Battery, statut d'entraînement)
-if os.path.exists("garmin_wellness.json"):
+if os.path.exists("nuria_wellness.json"):
     print("📂 Chargement des données de bien-être Garmin...")
-    with open("garmin_wellness.json", "r", encoding="utf-8") as f:
+    with open("nuria_wellness.json", "r", encoding="utf-8") as f:
         wellness = json.load(f)
 
     print(f"✅ {len(wellness)} jours de données de bien-être chargés !")
@@ -109,11 +109,11 @@ Body Battery rechargé : {bb_charge} | déchargé : {bb_decharge}
 
         docs.append(texte)
 else:
-    print("ℹ️  Aucun fichier garmin_wellness.json trouvé, données de bien-être ignorées.")
+    print("ℹ️  Aucun fichier nuria_wellness.json trouvé, données de bien-être ignorées.")
 
 # Sauvegarder les données transformées
-with open("garmin_docs.json", "w", encoding="utf-8") as f:
+with open("nuria_docs.json", "w", encoding="utf-8") as f:
     json.dump(docs, f, indent=2, ensure_ascii=False)
 
-print(f"💾 {len(docs)} documents transformés et sauvegardés dans garmin_docs.json")
+print(f"💾 {len(docs)} documents transformés et sauvegardés dans nuria_docs.json")
 print("🎉 Terminé ! Vous pouvez passer à l'étape suivante.")

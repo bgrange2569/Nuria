@@ -24,10 +24,10 @@ activities = client.get_activities(0, 100)
 print(f"✅ {len(activities)} activités récupérées !")
 
 # Sauvegarder en JSON
-with open("garmin_activities.json", "w", encoding="utf-8") as f:
+with open("nuria_activities.json", "w", encoding="utf-8") as f:
     json.dump(activities, f, indent=2, ensure_ascii=False)
 
-print("💾 Données sauvegardées dans garmin_activities.json")
+print("💾 Données sauvegardées dans nuria_activities.json")
 
 # Récupérer les données de bien-être (sommeil, stress, FC repos, HRV, statut d'entraînement, Body Battery)
 print(f"📥 Récupération de vos données de bien-être sur les {NB_JOURS_BIEN_ETRE} derniers jours...")
@@ -82,8 +82,8 @@ for i in range(NB_JOURS_BIEN_ETRE):
 
     wellness.append(entry)
 
-with open("garmin_wellness.json", "w", encoding="utf-8") as f:
+with open("nuria_wellness.json", "w", encoding="utf-8") as f:
     json.dump(wellness, f, indent=2, ensure_ascii=False)
 
-print(f"💾 Données de bien-être sauvegardées dans garmin_wellness.json ({len(wellness)} jours)")
+print(f"💾 Données de bien-être sauvegardées dans nuria_wellness.json ({len(wellness)} jours)")
 print("🎉 Terminé ! Vous pouvez passer à l'étape suivante.")
