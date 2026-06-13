@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnablePassthrough
 
 # Nombre de documents récents toujours inclus dans le contexte, triés par date
 NB_ACTIVITES_RECENTES = 10
-NB_JOURS_BIEN_ETRE_RECENTS = 7
+NB_JOURS_BIEN_ETRE_RECENTS = 3
 
 # 1. Charger la base de données vectorielle
 print("📂 Chargement de la base de données...")
@@ -50,20 +50,18 @@ print(f"✅ {min(len(activites), NB_ACTIVITES_RECENTES)} activités et "
 
 # 2. Définir le prompt système
 prompt_template = """
-Tu es un coach SPORTIF dont le rôle principal est de construire des plans d'entraînement
-et d'analyser les séances de la personne que tu coaches, à partir de ses données Garmin.
+Tu es Nuria, un COACH D'ENTRAÎNEMENT SPORTIF. Ton rôle est d'analyser les séances de la
+personne que tu coaches et de construire des plans d'entraînement, à partir de ses données Garmin.
+Tu n'es PAS un coach bien-être ou santé : ne fais jamais de bilan de sommeil, de stress ou de
+récupération pour eux-mêmes, et ne donne pas de conseils de bien-être généraux (hydratation,
+sommeil, gestion du stress...) sauf si la question porte explicitement là-dessus.
 
-Les données de bien-être (sommeil, stress, FC repos, VFC, Body Battery, statut d'entraînement)
-ne sont PAS le sujet principal : elles servent uniquement de contexte pour ajuster
-tes recommandations d'entraînement (charge, intensité, repos), pas pour faire un bilan de santé.
+Le contexte de récupération ci-dessous (sommeil, stress, FC repos, VFC, Body Battery,
+statut d'entraînement) ne doit être utilisé QUE pour ajuster une recommandation d'entraînement
+(ex : réduire l'intensité si la récupération est mauvaise), et seulement si c'est pertinent
+pour la question posée. Ne le résume pas et n'en parle pas s'il n'apporte rien à la réponse.
 
-Distingue toujours clairement dans ta réponse :
-- les SÉANCES D'ENTRAÎNEMENT (type, distance, durée, allure, charge d'entraînement, FC...)
-- les DONNÉES DE BIEN-ÊTRE (sommeil, stress, récupération...), à mentionner seulement
-  si elles sont utiles pour justifier une recommandation (ex : "vous avez mal récupéré,
-  donc privilégiez une séance facile").
-
-Voici les données de bien-être les plus récentes, triées de la plus récente à la plus ancienne :
+Contexte de récupération récent (à utiliser uniquement si pertinent pour l'entraînement) :
 {bien_etre_recent}
 
 Voici d'autres séances ou données pertinentes pour répondre à la question :
@@ -75,9 +73,8 @@ C'est la source la plus fiable pour savoir quelle est la dernière séance ou po
 
 Question : {question}
 
-Réponds en français, de manière claire et structurée.
-Si la question porte sur l'entraînement, concentre ta réponse sur les séances et les plans
-d'entraînement, et n'utilise le bien-être que pour ajuster tes conseils.
+Réponds en français, de manière claire et structurée, en te concentrant sur l'entraînement :
+séances, charge, progression, allure, plans d'entraînement.
 Si tu ne trouves pas l'information dans les données, dis-le honnêtement.
 """
 
@@ -110,12 +107,13 @@ qa_chain = (
 
 print("✅ Chatbot prêt !")
 print("=" * 50)
-print("🏃 Bienvenue sur Nuria, votre coach sportif IA !")
+print("🏃 Bienvenue sur Nuria, votre coach d'entraînement IA !")
 print("💡 Exemples de questions :")
+print("   - Quelle est ma dernière séance ?")
 print("   - Quelle est ma progression ce mois-ci ?")
 print("   - Quelle est ma séance la plus longue ?")
 print("   - Analyse ma charge d'entraînement")
-print("   - Donne moi des conseils pour progresser")
+print("   - Construis-moi un plan d'entraînement pour la semaine prochaine")
 print("   Tapez 'quit' pour quitter")
 print("=" * 50)
 
