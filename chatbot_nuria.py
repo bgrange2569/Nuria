@@ -8,7 +8,6 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 # Nombre de documents récents toujours inclus dans le contexte, triés par date
 NB_ACTIVITES_RECENTES = 6
-NB_JOURS_BIEN_ETRE_RECENTS = 3
 
 # 1. Charger la base de données vectorielle
 print("📂 Chargement de la base de données...")
@@ -30,33 +29,21 @@ activites = sorted(
     (d for d in tous_les_docs if d["type"] == "activite"),
     key=lambda d: d["date"], reverse=True
 )
-bien_etre = sorted(
-    (d for d in tous_les_docs if d["type"] == "bien_etre"),
-    key=lambda d: d["date"], reverse=True
-)
 
 activites_recentes = "\n\n".join(d["texte"] for d in activites[:NB_ACTIVITES_RECENTES])
-bien_etre_recent = "\n\n".join(d["texte"] for d in bien_etre[:NB_JOURS_BIEN_ETRE_RECENTS])
-print(f"✅ {min(len(activites), NB_ACTIVITES_RECENTES)} activités et "
-      f"{min(len(bien_etre), NB_JOURS_BIEN_ETRE_RECENTS)} jours de bien-être récents chargés !")
+print(f"✅ {min(len(activites), NB_ACTIVITES_RECENTES)} activités récentes chargées !")
 
 # 2. Définir le prompt système
 prompt_template = """
 Tu es Nuria, un COACH D'ENTRAÎNEMENT SPORTIF. Ton rôle est d'analyser les séances de la
 personne que tu coaches et de construire des plans d'entraînement, à partir de ses données Garmin.
-Tu n'es PAS un coach bien-être ou santé : ne fais jamais de bilan de sommeil, de stress ou de
-récupération pour eux-mêmes, et ne donne pas de conseils de bien-être généraux (hydratation,
-sommeil, gestion du stress...) sauf si la question porte explicitement là-dessus.
+Tu n'es PAS un coach bien-être ou santé : ne parle jamais de sommeil, de stress, de VFC,
+de Body Battery ou de récupération, et ne donne pas de conseils de bien-être généraux
+(hydratation, sommeil, gestion du stress...), même si la question porte là-dessus.
+Concentre-toi uniquement sur les séances, la charge d'entraînement, la progression,
+l'allure et les plans d'entraînement.
 
-Le contexte de récupération ci-dessous (sommeil, stress, FC repos, VFC, Body Battery,
-statut d'entraînement) ne doit être utilisé QUE pour ajuster une recommandation d'entraînement
-(ex : réduire l'intensité si la récupération est mauvaise), et seulement si c'est pertinent
-pour la question posée. Ne le résume pas et n'en parle pas s'il n'apporte rien à la réponse.
-
-Contexte de récupération récent (à utiliser uniquement si pertinent pour l'entraînement) :
-{bien_etre_recent}
-
-Voici d'autres séances ou données pertinentes pour répondre à la question :
+Voici d'autres séances pertinentes pour répondre à la question :
 {context}
 
 Voici les séances d'entraînement les plus récentes, triées de la plus récente (en premier) à la plus ancienne.
@@ -65,22 +52,21 @@ C'est la source la plus fiable pour savoir quelle est la dernière séance ou po
 
 Question : {question}
 
-Réponds en français, de manière claire et structurée, en te concentrant sur l'entraînement :
-séances, charge, progression, allure, plans d'entraînement.
+Réponds en français, de manière claire et structurée, en te concentrant sur l'entraînement.
 Si tu ne trouves pas l'information dans les données, dis-le honnêtement.
 """
 
 prompt = PromptTemplate(
     template=prompt_template,
-    input_variables=["activites_recentes", "bien_etre_recent", "context", "question"]
+    input_variables=["activites_recentes", "context", "question"]
 )
 
 # 3. Initialiser le LLM
 print("🧠 Initialisation du modèle LLM (qwen2.5:14b-instruct)...")
 llm = ChatOllama(model="qwen2.5:14b-instruct", temperature=0.3, num_ctx=8192, num_predict=900)
 
-# 4. Créer la chaîne RAG
-retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
+# 4. Créer la chaîne RAG (on exclut les documents de bien-être de la recherche)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 2, "filter": {"type": "activite"}})
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
@@ -95,7 +81,6 @@ def afficher_taille_prompt(valeur_prompt):
 qa_chain = (
     {
         "activites_recentes": lambda _: activites_recentes,
-        "bien_etre_recent": lambda _: bien_etre_recent,
         "context": retriever | format_docs,
         "question": RunnablePassthrough()
     }
