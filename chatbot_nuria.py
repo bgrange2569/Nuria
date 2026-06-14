@@ -77,7 +77,7 @@ prompt = PromptTemplate(
 
 # 3. Initialiser le LLM
 print("🧠 Initialisation du modèle LLM (qwen2.5:14b-instruct)...")
-llm = ChatOllama(model="qwen2.5:14b-instruct", temperature=0.3, num_ctx=8192, num_predict=400)
+llm = ChatOllama(model="qwen2.5:14b-instruct", temperature=0.3, num_ctx=8192, num_predict=900)
 
 # 4. Créer la chaîne RAG
 retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
