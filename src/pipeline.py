@@ -1,60 +1,31 @@
-import subprocess
 import sys
-import time
-from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-
-ETAPES = [
-    ("Export des données Garmin", "export_nuria.py"),
-    ("Transformation des données", "transformer_nuria.py"),
-    ("Vectorisation des données", "vectoriser_nuria.py"),
-]
-
-
-def formater_duree(secondes):
-    minutes, secondes = divmod(round(secondes), 60)
-    if minutes:
-        return f"{minutes} min {secondes} s"
-    return f"{secondes} s"
+from nuria_coach import NuriaCoach, formater_duree
 
 
 def main():
-    resultats = []
+    try:
+        coach = NuriaCoach()
+    except RuntimeError as e:
+        print(f"❌ {e}")
+        sys.exit(1)
 
-    for nom, script in ETAPES:
-        print(f"\n=== Étape : {nom} ({script}) ===")
-        debut = time.time()
-        resultat = subprocess.run([sys.executable, str(SCRIPT_DIR / script)])
-        duree = time.time() - debut
+    resume = coach.sync()
 
-        if resultat.returncode != 0:
-            print(f"\n❌ Échec de l'étape '{nom}' (code {resultat.returncode}) après {formater_duree(duree)}. Arrêt du pipeline.")
-            resultats.append((nom, False, duree))
-            afficher_resume(resultats, succes_global=False)
-            sys.exit(resultat.returncode)
-
-        print(f"✅ Étape '{nom}' terminée avec succès en {formater_duree(duree)}.")
-        resultats.append((nom, True, duree))
-
-    afficher_resume(resultats, succes_global=True)
-
-
-def afficher_resume(resultats, succes_global):
     print("\n" + "=" * 50)
     print("📋 Résumé du pipeline")
     print("=" * 50)
-    for nom, succes, duree in resultats:
-        statut = "✅ Succès" if succes else "❌ Échec"
-        print(f"{statut} — {nom} ({formater_duree(duree)})")
+    for etape in resume["etapes"]:
+        statut = "✅ Succès" if etape["succes"] else "❌ Échec"
+        print(f"{statut} — {etape['etape']} ({formater_duree(etape['duree'])})")
 
-    duree_totale = sum(duree for _, _, duree in resultats)
-    print(f"\nDurée totale : {formater_duree(duree_totale)}")
+    print(f"\nDurée totale : {formater_duree(resume['duree_totale'])}")
 
-    if succes_global:
+    if resume["succes"]:
         print("\n🎉 Pipeline terminé avec succès !")
     else:
         print("\n💥 Pipeline interrompu en raison d'une erreur.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
