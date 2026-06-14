@@ -34,6 +34,8 @@ for act in activities:
     duree_minutes = round(act.get("duration", 0) / 60, 1)
     distance_km = round(act.get("distance", 0) / 1000, 2)
 
+    date_activite = act.get('startTimeLocal', 'Date inconnue').split(" ")[0]
+
     texte = f"""
 Activité du {act.get('startTimeLocal', 'Date inconnue')}
 Type : {activity_type}
@@ -49,7 +51,7 @@ Score aérobie : {act.get('aerobicTrainingEffect', 'N/A')}
 Score anaérobie : {act.get('anaerobicTrainingEffect', 'N/A')}
     """.strip()
 
-    docs.append(texte)
+    docs.append({"type": "activite", "date": date_activite, "texte": texte})
 
 # 2. Transformer les données de bien-être (sommeil, stress, HRV, FC repos, Body Battery, statut d'entraînement)
 if os.path.exists("nuria_wellness.json"):
@@ -107,7 +109,7 @@ VO2 Max estimé : {vo2max}
 Body Battery rechargé : {bb_charge} | déchargé : {bb_decharge}
         """.strip()
 
-        docs.append(texte)
+        docs.append({"type": "bien_etre", "date": jour.get('date'), "texte": texte})
 else:
     print("ℹ️  Aucun fichier nuria_wellness.json trouvé, données de bien-être ignorées.")
 

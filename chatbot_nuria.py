@@ -1,6 +1,4 @@
 import json
-import re
-from datetime import datetime
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
@@ -23,28 +21,21 @@ print("✅ Base de données chargée !")
 # 1bis. Charger les documents bruts pour construire un contexte récent trié par date
 # (la recherche par similarité seule ne garantit pas de retrouver les données les plus récentes)
 print("📂 Chargement des données récentes...")
-DATE_RE = re.compile(r"^(?:Activité du|Bien-être du) (\d{4}-\d{2}-\d{2})")
-
-
-def extraire_date(doc):
-    match = DATE_RE.match(doc)
-    return datetime.strptime(match.group(1), "%Y-%m-%d") if match else datetime.min
-
 
 with open("nuria_docs.json", "r", encoding="utf-8") as f:
     tous_les_docs = json.load(f)
 
 activites = sorted(
-    (d for d in tous_les_docs if d.startswith("Activité du")),
-    key=extraire_date, reverse=True
+    (d for d in tous_les_docs if d["type"] == "activite"),
+    key=lambda d: d["date"], reverse=True
 )
 bien_etre = sorted(
-    (d for d in tous_les_docs if d.startswith("Bien-être du")),
-    key=extraire_date, reverse=True
+    (d for d in tous_les_docs if d["type"] == "bien_etre"),
+    key=lambda d: d["date"], reverse=True
 )
 
-activites_recentes = "\n\n".join(activites[:NB_ACTIVITES_RECENTES])
-bien_etre_recent = "\n\n".join(bien_etre[:NB_JOURS_BIEN_ETRE_RECENTS])
+activites_recentes = "\n\n".join(d["texte"] for d in activites[:NB_ACTIVITES_RECENTES])
+bien_etre_recent = "\n\n".join(d["texte"] for d in bien_etre[:NB_JOURS_BIEN_ETRE_RECENTS])
 print(f"✅ {min(len(activites), NB_ACTIVITES_RECENTES)} activités et "
       f"{min(len(bien_etre), NB_JOURS_BIEN_ETRE_RECENTS)} jours de bien-être récents chargés !")
 
