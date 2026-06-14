@@ -1,5 +1,6 @@
 import json
 import time
+from pathlib import Path
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
@@ -9,11 +10,15 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 # Nombre de documents récents toujours inclus dans le contexte, triés par date
 NB_ACTIVITES_RECENTES = 6
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+PERSIST_DIRECTORY = BASE_DIR / "db" / "nuria_db"
+
 # 1. Charger la base de données vectorielle
 print("📂 Chargement de la base de données...")
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 vectorstore = Chroma(
-    persist_directory="./nuria_db",
+    persist_directory=str(PERSIST_DIRECTORY),
     embedding_function=embeddings
 )
 print("✅ Base de données chargée !")
@@ -22,7 +27,7 @@ print("✅ Base de données chargée !")
 # (la recherche par similarité seule ne garantit pas de retrouver les données les plus récentes)
 print("📂 Chargement des données récentes...")
 
-with open("nuria_docs.json", "r", encoding="utf-8") as f:
+with open(DATA_DIR / "nuria_docs.json", "r", encoding="utf-8") as f:
     tous_les_docs = json.load(f)
 
 activites = sorted(

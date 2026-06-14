@@ -1,5 +1,8 @@
 import json
 import os
+from pathlib import Path
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def get_path(d, *keys):
@@ -23,7 +26,7 @@ def or_na(value):
 
 # 1. Transformer les activités
 print("📂 Chargement des activités Garmin...")
-with open("nuria_activities.json", "r", encoding="utf-8") as f:
+with open(DATA_DIR / "nuria_activities.json", "r", encoding="utf-8") as f:
     activities = json.load(f)
 
 print(f"✅ {len(activities)} activités chargées !")
@@ -54,9 +57,9 @@ Score anaérobie : {act.get('anaerobicTrainingEffect', 'N/A')}
     docs.append({"type": "activite", "date": date_activite, "texte": texte})
 
 # 2. Transformer les données de bien-être (sommeil, stress, HRV, FC repos, Body Battery, statut d'entraînement)
-if os.path.exists("nuria_wellness.json"):
+if os.path.exists(DATA_DIR / "nuria_wellness.json"):
     print("📂 Chargement des données de bien-être Garmin...")
-    with open("nuria_wellness.json", "r", encoding="utf-8") as f:
+    with open(DATA_DIR / "nuria_wellness.json", "r", encoding="utf-8") as f:
         wellness = json.load(f)
 
     print(f"✅ {len(wellness)} jours de données de bien-être chargés !")
@@ -114,8 +117,8 @@ else:
     print("ℹ️  Aucun fichier nuria_wellness.json trouvé, données de bien-être ignorées.")
 
 # Sauvegarder les données transformées
-with open("nuria_docs.json", "w", encoding="utf-8") as f:
+with open(DATA_DIR / "nuria_docs.json", "w", encoding="utf-8") as f:
     json.dump(docs, f, indent=2, ensure_ascii=False)
 
-print(f"💾 {len(docs)} documents transformés et sauvegardés dans nuria_docs.json")
+print(f"💾 {len(docs)} documents transformés et sauvegardés dans data/nuria_docs.json")
 print("🎉 Terminé ! Vous pouvez passer à l'étape suivante.")

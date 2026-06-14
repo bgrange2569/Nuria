@@ -1,14 +1,17 @@
 import json
 import shutil
+from pathlib import Path
 from langchain_ollama import OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 
-PERSIST_DIRECTORY = "./nuria_db"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+PERSIST_DIRECTORY = BASE_DIR / "db" / "nuria_db"
 
 # 1. Charger les données transformées
 print("📂 Chargement des données transformées...")
-with open("nuria_docs.json", "r", encoding="utf-8") as f:
+with open(DATA_DIR / "nuria_docs.json", "r", encoding="utf-8") as f:
     docs = json.load(f)
 
 print(f"✅ {len(docs)} activités chargées !")
@@ -32,7 +35,7 @@ print("⚙️  Vectorisation en cours... (peut prendre quelques minutes)")
 vectorstore = Chroma.from_documents(
     documents=documents,
     embedding=embeddings,
-    persist_directory=PERSIST_DIRECTORY
+    persist_directory=str(PERSIST_DIRECTORY)
 )
 
 print("✅ Vectorisation terminée !")

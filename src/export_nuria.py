@@ -1,11 +1,14 @@
 from garminconnect import Garmin
 from dotenv import load_dotenv
 from datetime import date, timedelta
+from pathlib import Path
 import os
 import json
 
 # Nombre de jours d'historique à récupérer pour les données de bien-être
 NB_JOURS_BIEN_ETRE = 30
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # Charger les identifiants depuis le fichier .env
 load_dotenv()
@@ -24,10 +27,10 @@ activities = client.get_activities(0, 100)
 print(f"✅ {len(activities)} activités récupérées !")
 
 # Sauvegarder en JSON
-with open("nuria_activities.json", "w", encoding="utf-8") as f:
+with open(DATA_DIR / "nuria_activities.json", "w", encoding="utf-8") as f:
     json.dump(activities, f, indent=2, ensure_ascii=False)
 
-print("💾 Données sauvegardées dans nuria_activities.json")
+print("💾 Données sauvegardées dans data/nuria_activities.json")
 
 # Récupérer les données de bien-être (sommeil, stress, FC repos, HRV, statut d'entraînement, Body Battery)
 print(f"📥 Récupération de vos données de bien-être sur les {NB_JOURS_BIEN_ETRE} derniers jours...")
@@ -82,8 +85,8 @@ for i in range(NB_JOURS_BIEN_ETRE):
 
     wellness.append(entry)
 
-with open("nuria_wellness.json", "w", encoding="utf-8") as f:
+with open(DATA_DIR / "nuria_wellness.json", "w", encoding="utf-8") as f:
     json.dump(wellness, f, indent=2, ensure_ascii=False)
 
-print(f"💾 Données de bien-être sauvegardées dans nuria_wellness.json ({len(wellness)} jours)")
+print(f"💾 Données de bien-être sauvegardées dans data/nuria_wellness.json ({len(wellness)} jours)")
 print("🎉 Terminé ! Vous pouvez passer à l'étape suivante.")
