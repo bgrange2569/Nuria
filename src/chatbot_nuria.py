@@ -24,6 +24,8 @@ print("   - Quelle est ma progression ce mois-ci ?")
 print("   - Quelle est ma séance la plus longue ?")
 print("   - Analyse ma charge d'entraînement")
 print("   - Construis-moi un plan d'entraînement pour la semaine prochaine")
+print("   Tapez '/historique' pour revoir les derniers échanges")
+print("   Tapez '/effacer' pour effacer l'historique de conversation")
 print("   Tapez 'quit' pour quitter")
 print("=" * 50)
 
@@ -38,6 +40,25 @@ while True:
 
     if not question.strip():
         print("⚠️  Veuillez poser une question.")
+        continue
+
+    if question.lower() == "/historique":
+        echanges = coach.obtenir_historique()
+        if not echanges:
+            print("📭 Aucun échange dans l'historique.")
+        else:
+            print(f"📜 Derniers échanges ({len(echanges)}) :")
+            for echange in echanges:
+                print("-" * 50)
+                print(f"Vous 👤 : {echange['question']}")
+                print(f"Nuria 🤖 : {echange['reponse']}")
+        print("-" * 50)
+        continue
+
+    if question.lower() == "/effacer":
+        coach.effacer_historique()
+        print("🗑️  Historique de conversation effacé.")
+        print("-" * 50)
         continue
 
     print("\n🤖 Nuria : ", end="", flush=True)

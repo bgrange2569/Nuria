@@ -5,6 +5,8 @@
 data/nuria_activities.json
 data/nuria_wellness.json
 data/nuria_docs.json
+data/agregats.json
+data/historique.json
 db/nuria_db/
 db/coaching_db/
 

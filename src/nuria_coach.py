@@ -13,23 +13,28 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
+from agregats_nuria import formater_resume_agregats
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 SRC_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 PERSIST_DIRECTORY = BASE_DIR / "db" / "nuria_db"
 DOCS_PATH = DATA_DIR / "nuria_docs.json"
+AGREGATS_PATH = DATA_DIR / "agregats.json"
+HISTORIQUE_PATH = DATA_DIR / "historique.json"
 
 LLM_MODEL = "qwen2.5:14b-instruct"
 EMBEDDING_MODEL = "nomic-embed-text"
 
-# Nombre de documents récents toujours inclus dans le contexte, triés par date
-NB_ACTIVITES_RECENTES = 6
+# Nombre d'échanges précédents conservés dans l'historique de conversation
+NB_ECHANGES_HISTORIQUE = 5
 
 # Étapes du pipeline de synchronisation
 ETAPES_SYNC = [
     ("Export des données Garmin", "export_nuria.py"),
     ("Transformation des données", "transformer_nuria.py"),
     ("Vectorisation des données", "vectoriser_nuria.py"),
+    ("Calcul des agrégats", "agregats_nuria.py"),
 ]
 
 PROMPT_TEMPLATE = """
@@ -44,9 +49,11 @@ l'allure et les plans d'entraînement.
 Voici d'autres séances pertinentes pour répondre à la question :
 {context}
 
-Voici les séances d'entraînement les plus récentes, triées de la plus récente (en premier) à la plus ancienne.
-C'est la source la plus fiable pour savoir quelle est la dernière séance ou pour construire un plan d'entraînement :
-{activites_recentes}
+Voici un résumé des statistiques d'entraînement de la personne (charge, progression, répartition des sports...) :
+{agregats}
+
+Voici les derniers échanges de la conversation, du plus ancien au plus récent :
+{historique}
 
 Question : {question}
 
@@ -80,8 +87,11 @@ class NuriaCoach:
         # Initialiser la connexion ChromaDB et charger les données récentes
         self.vectorstore = None
         self.tous_les_docs = []
-        self.activites_recentes = ""
+        self.agregats_texte = ""
         self.qa_chain = None
+        self.historique = []
+        self.historique_texte = ""
+        self._charger_historique()
         self._charger_donnees()
 
     # ------------------------------------------------------------------
@@ -115,7 +125,7 @@ class NuriaCoach:
         if not PERSIST_DIRECTORY.exists() or not DOCS_PATH.exists():
             self.vectorstore = None
             self.tous_les_docs = []
-            self.activites_recentes = ""
+            self.agregats_texte = ""
             self.qa_chain = None
             return
 
@@ -133,19 +143,88 @@ class NuriaCoach:
         except json.JSONDecodeError as e:
             raise RuntimeError(f"Le fichier {DOCS_PATH} est corrompu (JSON invalide) : {e}")
 
-        activites = sorted(
-            (d for d in self.tous_les_docs if d.get("type") == "activite"),
-            key=lambda d: d["date"], reverse=True
-        )
-        self.activites_recentes = "\n\n".join(d["texte"] for d in activites[:NB_ACTIVITES_RECENTES])
+        self.agregats_texte = self._charger_agregats()
 
         self.qa_chain = self._build_chain()
+
+    def _charger_agregats(self):
+        """Charge les agrégats pré-calculés et retourne leur résumé en français.
+
+        Retourne une chaîne vide si le fichier n'existe pas encore (avant la
+        première synchronisation incluant l'étape de calcul des agrégats).
+        """
+        if not AGREGATS_PATH.exists():
+            return ""
+
+        try:
+            with open(AGREGATS_PATH, "r", encoding="utf-8") as f:
+                agregats = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return ""
+
+        return formater_resume_agregats(agregats)
+
+    # ------------------------------------------------------------------
+    # Historique de conversation
+    # ------------------------------------------------------------------
+
+    def _charger_historique(self):
+        """Charge l'historique de conversation depuis le disque, ou repart à vide."""
+        if not HISTORIQUE_PATH.exists():
+            self.historique = []
+        else:
+            try:
+                with open(HISTORIQUE_PATH, "r", encoding="utf-8") as f:
+                    self.historique = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                self.historique = []
+
+        self.historique_texte = self._formater_historique()
+
+    def _sauvegarder_historique(self):
+        """Sauvegarde l'historique de conversation sur le disque."""
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with open(HISTORIQUE_PATH, "w", encoding="utf-8") as f:
+                json.dump(self.historique, f, indent=2, ensure_ascii=False)
+        except OSError as e:
+            print(f"⚠️  Impossible de sauvegarder l'historique de conversation : {e}")
+
+    def _formater_historique(self):
+        """Construit le texte des derniers échanges, pour le prompt du chatbot."""
+        derniers = self.historique[-NB_ECHANGES_HISTORIQUE:]
+        if not derniers:
+            return "(aucun échange précédent)"
+
+        return "\n\n".join(
+            f"Question : {echange['question']}\nRéponse : {echange['reponse']}"
+            for echange in derniers
+        )
+
+    def enregistrer_echange(self, question, reponse):
+        """Ajoute un échange à l'historique et le sauvegarde sur le disque."""
+        self.historique.append({"question": question, "reponse": reponse})
+        self.historique_texte = self._formater_historique()
+        self._sauvegarder_historique()
+
+    def effacer_historique(self):
+        """Efface l'historique de conversation, en mémoire et sur le disque."""
+        self.historique = []
+        self.historique_texte = self._formater_historique()
+        try:
+            HISTORIQUE_PATH.unlink(missing_ok=True)
+        except OSError as e:
+            print(f"⚠️  Impossible de supprimer le fichier d'historique : {e}")
+
+    def obtenir_historique(self, n=5):
+        """Retourne les n derniers échanges de l'historique."""
+        return self.historique[-n:]
 
     def _build_chain(self):
         """Construit la chaîne RAG (recherche + prompt + LLM)."""
         prompt = PromptTemplate(
             template=PROMPT_TEMPLATE,
-            input_variables=["activites_recentes", "context", "question"]
+            input_variables=["agregats", "context", "historique", "question"]
         )
 
         retriever = self.vectorstore.as_retriever(search_kwargs={"k": 2, "filter": {"type": "activite"}})
@@ -155,7 +234,8 @@ class NuriaCoach:
 
         return (
             {
-                "activites_recentes": lambda _: self.activites_recentes,
+                "agregats": lambda _: self.agregats_texte,
+                "historique": lambda _: self.historique_texte,
                 "context": retriever | format_docs,
                 "question": RunnablePassthrough()
             }
@@ -210,14 +290,18 @@ class NuriaCoach:
                 "Aucune donnée disponible. Lancez une synchronisation (sync) avant de discuter."
             )
 
+        reponse_complete = []
         try:
             for morceau in self.qa_chain.stream(question):
+                reponse_complete.append(morceau)
                 yield morceau
         except Exception as e:
             raise RuntimeError(
                 f"Erreur lors de la génération de la réponse : {e}. "
                 "Vérifiez qu'Ollama est toujours lancé (commande 'ollama serve')."
             )
+
+        self.enregistrer_echange(question, "".join(reponse_complete))
 
     # ------------------------------------------------------------------
     # Statut
