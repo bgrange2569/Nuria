@@ -1,12 +1,13 @@
 import json
+import time
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 # Nombre de documents récents toujours inclus dans le contexte, triés par date
-NB_ACTIVITES_RECENTES = 10
+NB_ACTIVITES_RECENTES = 6
 NB_JOURS_BIEN_ETRE_RECENTS = 3
 
 # 1. Charger la base de données vectorielle
@@ -76,13 +77,20 @@ prompt = PromptTemplate(
 
 # 3. Initialiser le LLM
 print("🧠 Initialisation du modèle LLM (qwen2.5:14b-instruct)...")
-llm = ChatOllama(model="qwen2.5:14b-instruct", temperature=0.3, num_ctx=8192)
+llm = ChatOllama(model="qwen2.5:14b-instruct", temperature=0.3, num_ctx=8192, num_predict=400)
 
 # 4. Créer la chaîne RAG
-retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
+
+
+def afficher_taille_prompt(valeur_prompt):
+    texte = valeur_prompt.to_string()
+    print(f"📏 Taille du prompt : {len(texte)} caractères (~{len(texte) // 4} tokens estimés)")
+    return valeur_prompt
+
 
 qa_chain = (
     {
@@ -92,6 +100,7 @@ qa_chain = (
         "question": RunnablePassthrough()
     }
     | prompt
+    | RunnableLambda(afficher_taille_prompt)
     | llm
     | StrOutputParser()
 )
@@ -121,7 +130,10 @@ while True:
         print("⚠️  Veuillez poser une question.")
         continue
 
-    print("\n🤖 Nuria (en cours de réflexion...)\n")
-    reponse = qa_chain.invoke(question)
-    print(f"🤖 Nuria : {reponse}")
+    print("\n🤖 Nuria : ", end="", flush=True)
+    debut = time.time()
+    for morceau in qa_chain.stream(question):
+        print(morceau, end="", flush=True)
+    duree = time.time() - debut
+    print(f"\n⏱️  Temps de réponse total : {duree:.1f}s")
     print("-" * 50)
