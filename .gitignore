@@ -2,10 +2,11 @@
 .env
 
 # Données personnelles générées
-nuria_activities.json
-nuria_wellness.json
-nuria_docs.json
-nuria_db/
+data/nuria_activities.json
+data/nuria_wellness.json
+data/nuria_docs.json
+db/nuria_db/
+db/coaching_db/
 
 # Environnement virtuel Python
 nuria/
