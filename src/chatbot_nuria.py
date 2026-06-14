@@ -1,6 +1,9 @@
 import json
+import sys
 import time
 from pathlib import Path
+
+import ollama
 from langchain_ollama import OllamaEmbeddings, ChatOllama
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
@@ -10,25 +13,69 @@ from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 # Nombre de documents récents toujours inclus dans le contexte, triés par date
 NB_ACTIVITES_RECENTES = 6
 
+LLM_MODEL = "qwen2.5:14b-instruct"
+EMBEDDING_MODEL = "nomic-embed-text"
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 PERSIST_DIRECTORY = BASE_DIR / "db" / "nuria_db"
 
+
+def verifier_ollama():
+    """Vérifie qu'Ollama est lancé et que les modèles nécessaires sont disponibles."""
+    print("🔍 Vérification d'Ollama...")
+    try:
+        reponse = ollama.list()
+    except Exception:
+        print("❌ Ollama n'est pas lancé. Démarrez-le avec la commande 'ollama serve' puis relancez le chatbot.")
+        sys.exit(1)
+
+    modeles = [m.model for m in reponse.models]
+    for modele in (LLM_MODEL, EMBEDDING_MODEL):
+        if not any(m.startswith(modele) for m in modeles):
+            print(f"❌ Le modèle '{modele}' n'est pas disponible dans Ollama.")
+            print(f"   Installez-le avec la commande : ollama pull {modele}")
+            sys.exit(1)
+
+    print("✅ Ollama est lancé et les modèles nécessaires sont disponibles !")
+
+
+verifier_ollama()
+
 # 1. Charger la base de données vectorielle
 print("📂 Chargement de la base de données...")
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
-vectorstore = Chroma(
-    persist_directory=str(PERSIST_DIRECTORY),
-    embedding_function=embeddings
-)
+if not PERSIST_DIRECTORY.exists():
+    print(f"❌ La base de données vectorielle {PERSIST_DIRECTORY} est introuvable.")
+    print("   Lancez d'abord le pipeline (python pipeline.py) pour la générer.")
+    sys.exit(1)
+
+try:
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL)
+    vectorstore = Chroma(
+        persist_directory=str(PERSIST_DIRECTORY),
+        embedding_function=embeddings
+    )
+except Exception as e:
+    print(f"❌ Impossible de charger la base de données vectorielle : {e}")
+    sys.exit(1)
 print("✅ Base de données chargée !")
 
 # 1bis. Charger les documents bruts pour construire un contexte récent trié par date
 # (la recherche par similarité seule ne garantit pas de retrouver les données les plus récentes)
 print("📂 Chargement des données récentes...")
 
-with open(DATA_DIR / "nuria_docs.json", "r", encoding="utf-8") as f:
-    tous_les_docs = json.load(f)
+docs_path = DATA_DIR / "nuria_docs.json"
+if not docs_path.exists():
+    print(f"❌ Le fichier {docs_path} est introuvable.")
+    print("   Lancez d'abord le pipeline (python pipeline.py) pour générer les données.")
+    sys.exit(1)
+
+try:
+    with open(docs_path, "r", encoding="utf-8") as f:
+        tous_les_docs = json.load(f)
+except json.JSONDecodeError as e:
+    print(f"❌ Le fichier {docs_path} est corrompu (JSON invalide) : {e}")
+    sys.exit(1)
 
 activites = sorted(
     (d for d in tous_les_docs if d["type"] == "activite"),
@@ -122,8 +169,14 @@ while True:
 
     print("\n🤖 Nuria : ", end="", flush=True)
     debut = time.time()
-    for morceau in qa_chain.stream(question):
-        print(morceau, end="", flush=True)
+    try:
+        for morceau in qa_chain.stream(question):
+            print(morceau, end="", flush=True)
+    except Exception as e:
+        print(f"\n❌ Erreur lors de la génération de la réponse : {e}")
+        print("   Vérifiez qu'Ollama est toujours lancé (commande 'ollama serve').")
+        print("-" * 50)
+        continue
     duree = time.time() - debut
     print(f"\n⏱️  Temps de réponse total : {duree:.1f}s")
     print("-" * 50)
