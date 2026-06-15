@@ -122,6 +122,22 @@ def calculer_derniere_activite(activites_dates):
     }
 
 
+def calculer_seance_extreme(activites_dates, cle_fn):
+    """Retourne un résumé de la séance maximisant cle_fn, ou None si aucune."""
+    if not activites_dates:
+        return None
+
+    d, act = max(activites_dates, key=lambda x: cle_fn(x[1]) or 0)
+    charge = act.get("activityTrainingLoad")
+    return {
+        "date": d.strftime("%Y-%m-%d %H:%M:%S"),
+        "type": (act.get("activityType") or {}).get("typeKey", "inconnu"),
+        "distance_km": round((act.get("distance") or 0) / 1000, 2),
+        "duree_minutes": round((act.get("duration") or 0) / 60, 1),
+        "charge": round(charge, 1) if charge is not None else None,
+    }
+
+
 def calculer_agregats(activites, aujourd_hui=None):
     """Calcule l'ensemble des agrégats à partir de la liste d'activités."""
     if aujourd_hui is None:
@@ -174,6 +190,8 @@ def calculer_agregats(activites, aujourd_hui=None):
         "semaine_precedente": semaine_precedente,
         "jours_repos_semaine_actuelle": jours_repos_semaine_actuelle,
         "derniere_activite": calculer_derniere_activite(activites_dates),
+        "seance_plus_longue_duree": calculer_seance_extreme(activites_dates, lambda act: act.get("duration")),
+        "seance_plus_longue_distance": calculer_seance_extreme(activites_dates, lambda act: act.get("distance")),
     }
 
 
@@ -187,6 +205,22 @@ def formater_resume_agregats(agregats):
             f"Dernière séance : {derniere['date']} - {derniere['type']} - "
             f"{derniere['distance_km']} km en {derniere['duree_minutes']} min "
             f"(charge : {derniere['charge']})"
+        )
+
+    plus_longue_duree = agregats.get("seance_plus_longue_duree")
+    if plus_longue_duree:
+        lignes.append(
+            f"Séance la plus longue (durée) : {plus_longue_duree['date']} - {plus_longue_duree['type']} - "
+            f"{plus_longue_duree['distance_km']} km en {plus_longue_duree['duree_minutes']} min "
+            f"(charge : {plus_longue_duree['charge']})"
+        )
+
+    plus_longue_distance = agregats.get("seance_plus_longue_distance")
+    if plus_longue_distance:
+        lignes.append(
+            f"Séance la plus longue (distance) : {plus_longue_distance['date']} - {plus_longue_distance['type']} - "
+            f"{plus_longue_distance['distance_km']} km en {plus_longue_distance['duree_minutes']} min "
+            f"(charge : {plus_longue_distance['charge']})"
         )
 
     lignes.append(

@@ -29,6 +29,19 @@ EMBEDDING_MODEL = "nomic-embed-text"
 # Nombre d'échanges précédents conservés dans l'historique de conversation
 NB_ECHANGES_HISTORIQUE = 5
 
+# Nombre de séances brutes injectées dans le contexte (RAG)
+K_CONTEXTE_DEFAUT = 2
+K_CONTEXTE_SPECIFIQUE = 10
+
+# Mots-clés indiquant une question portant sur une séance spécifique
+# (plutôt qu'une tendance générale déjà couverte par les agrégats)
+MOTS_CLES_SEANCE_SPECIFIQUE = [
+    "plus longue", "plus long", "plus courte", "plus court",
+    "plus rapide", "plus lente", "record", "meilleure", "pire",
+    "le plus", "la plus", "dernière séance", "dernier entraînement",
+    "dernière activité",
+]
+
 # Étapes du pipeline de synchronisation
 ETAPES_SYNC = [
     ("Export des données Garmin", "export_nuria.py"),
@@ -220,6 +233,24 @@ class NuriaCoach:
         """Retourne les n derniers échanges de l'historique."""
         return self.historique[-n:]
 
+    def _choisir_k(self, question):
+        """Choisit le nombre de séances brutes à récupérer selon le type de question.
+
+        Une question portant sur une séance spécifique (record, plus longue, dernière...)
+        a besoin de plus de séances brutes en contexte qu'une question de tendance
+        générale, déjà couverte par les agrégats.
+        """
+        question_minuscule = question.lower()
+        if any(mot in question_minuscule for mot in MOTS_CLES_SEANCE_SPECIFIQUE):
+            return K_CONTEXTE_SPECIFIQUE
+        return K_CONTEXTE_DEFAUT
+
+    def _recuperer_contexte(self, question):
+        """Récupère les séances brutes les plus pertinentes pour la question."""
+        k = self._choisir_k(question)
+        docs = self.vectorstore.similarity_search(question, k=k, filter={"type": "activite"})
+        return "\n\n".join(doc.page_content for doc in docs)
+
     def _build_chain(self):
         """Construit la chaîne RAG (recherche + prompt + LLM)."""
         prompt = PromptTemplate(
@@ -227,16 +258,11 @@ class NuriaCoach:
             input_variables=["agregats", "context", "historique", "question"]
         )
 
-        retriever = self.vectorstore.as_retriever(search_kwargs={"k": 2, "filter": {"type": "activite"}})
-
-        def format_docs(docs):
-            return "\n\n".join(doc.page_content for doc in docs)
-
         return (
             {
                 "agregats": lambda _: self.agregats_texte,
                 "historique": lambda _: self.historique_texte,
-                "context": retriever | format_docs,
+                "context": RunnableLambda(self._recuperer_contexte),
                 "question": RunnablePassthrough()
             }
             | prompt
